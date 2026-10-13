@@ -129,7 +129,7 @@ async function askGemini(text, history, searchContext, timeoutMs) {
   contents.push({ role: "user", parts: [{ text: prompt }] });
 
   const { response, data } = await fetchJson(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+  `https://apiyi.com{model}:generateContent`,
     {
       method: "POST",
       headers: {

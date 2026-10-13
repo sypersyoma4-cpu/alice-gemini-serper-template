@@ -27,7 +27,7 @@ function aliceResponse(text, endSession = false, history = []) {
 
 function fitAliceText(value) {
   const text = String(value ?? "")
-    .replace(/[\r\n\t]+/g, " ")
+    .replace(/[\(\r\\)n\t]+/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
 
@@ -116,7 +116,7 @@ async function askGemini(text, history, searchContext, timeoutMs) {
   if (timeoutMs < 250) throw new Error("TIME_BUDGET_EXHAUSTED");
 
   const model = String(process.env.GEMINI_MODEL || DEFAULT_MODEL).trim();
-  if (!/^[A-Za-z0-9._-]+$/.test(model)) throw new Error("INVALID_MODEL_NAME");
+  if (!/^[A-Za-z0-9._-]+\$/.test(model)) throw new Error("INVALID_MODEL_NAME");
 
   const contents = safeHistory(history).map(item => ({
     role: item.role,
@@ -129,7 +129,7 @@ async function askGemini(text, history, searchContext, timeoutMs) {
   contents.push({ role: "user", parts: [{ text: prompt }] });
 
   const { response, data } = await fetchJson(
-  `https://googleapis.com{model}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://googleapis.com{model}:generateContent`,
     {
       method: "POST",
       headers: {
@@ -221,7 +221,6 @@ export default async function handler(req, res) {
   try {
     let searchContext = "";
     if (isSearchIntent(text) && process.env.SERPER_API_KEY) {
-      // Search has a very short budget because Alice expects a response within 4.5 seconds.
       searchContext = await searchWeb(text, Math.min(SERPER_TIMEOUT_MS, Math.max(0, remainingMs() - 2600)));
     }
 
@@ -234,16 +233,13 @@ export default async function handler(req, res) {
 
     const history = [
       ...oldHistory,
-      { role: "user", text: text.slice(0, MAX_HISTORY_MESSAGE_CHARS) },
-      { role: "model", text: answer.slice(0, MAX_HISTORY_MESSAGE_CHARS) }
+      { role: "user", text },
+      { role: "model", text: answer }
     ].slice(-MAX_HISTORY_MESSAGES);
 
     return res.status(200).json(aliceResponse(answer, false, history));
   } catch (error) {
-    const safeError = error?.message === "AbortError" ? "TIME_BUDGET_EXHAUSTED" : error;
-    console.warn("Alice webhook returned a fallback response:", safeError?.message || "unknown error");
-    return res.status(200).json(aliceResponse(errorForUser(safeError), false, oldHistory));
+    console.error("Handler error:", error);
+    return res.status(200).json(aliceResponse(errorForUser(error), false, oldHistory));
   }
 }
-
-export { aliceResponse, fitAliceText, isSearchIntent, safeHistory };
